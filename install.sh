@@ -214,13 +214,33 @@ setup_ags() {
 
     local ags_dir="$HOME/.config/ags"
 
-    if [[ ! -f "$ags_dir/package.json" ]]; then
-        warn "AGS config not found at $ags_dir — will be created after stow"
+    # Check AGS is installed (provides /usr/share/ags/js)
+    if [[ ! -d "/usr/share/ags/js" ]]; then
+        err "AGS not installed (/usr/share/ags/js missing)"
+        err "Install aylurs-gtk-shell from AUR first"
+        ERRORS+=("AGS not installed — npm dependencies will fail")
         return
     fi
 
+    if [[ ! -f "$ags_dir/package.json" ]]; then
+        warn "AGS config not found at $ags_dir — run stow first"
+        return
+    fi
+
+    # Clean stale node_modules if AGS was updated
+    if [[ -L "$ags_dir/node_modules/ags" ]]; then
+        local target
+        target=$(readlink -f "$ags_dir/node_modules/ags" 2>/dev/null || true)
+        if [[ ! -d "$target" ]]; then
+            info "Cleaning stale node_modules (AGS updated)..."
+            rm -rf "$ags_dir/node_modules"
+        fi
+    fi
+
     info "Installing AGS npm dependencies..."
-    (cd "$ags_dir" && npm install --prefer-offline 2>&1) && \
+    # Remove lock file to regenerate with current system paths
+    rm -f "$ags_dir/package-lock.json"
+    (cd "$ags_dir" && npm install 2>&1) && \
         ok "AGS npm dependencies installed" || {
             warn "npm install failed — trying with legacy peer deps"
             (cd "$ags_dir" && npm install --legacy-peer-deps 2>&1) && \

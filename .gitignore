@@ -2,4 +2,5 @@ node_modules/
 .cache/
 *.compiled.css
 style-compiled.css
+package-lock.json
 .claude/
