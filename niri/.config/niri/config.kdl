@@ -1,0 +1,206 @@
+// ─── Output ──────────────────────────────────────────────────────────────────
+output "Virtual-1" {
+    scale 2
+    transform "normal"
+}
+
+// ─── Input ───────────────────────────────────────────────────────────────────
+input {
+    keyboard {
+        xkb {
+            layout "us,ru"
+            options "grp:alt_shift_toggle,compose:ralt,ctrl:nocaps"
+        }
+    }
+
+    touchpad {
+        tap
+        natural-scroll
+    }
+
+    mouse {
+        accel-speed 0.0
+    }
+
+    // Focus follows mouse with a small cooldown zone
+    focus-follows-mouse max-scroll-amount="10%"
+}
+
+// ─── Layout ──────────────────────────────────────────────────────────────────
+layout {
+    gaps 16
+
+    border {
+        width 4
+        active-gradient from="#a1c9fd" to="#d7bde4" angle=45
+        inactive-gradient from="#43474e" to="#8d9199" angle=45
+    }
+
+    focus-ring {
+        off
+    }
+
+    default-column-width {
+        proportion 0.5
+    }
+
+    preset-column-widths {
+        proportion 0.33
+        proportion 0.5
+        proportion 0.66
+    }
+}
+
+// Ask clients to omit client-side decorations (no titlebars)
+prefer-no-csd
+
+// ─── Window Rules ────────────────────────────────────────────────────────────
+
+// Global: rounded corners
+window-rule {
+    geometry-corner-radius 16 16 16 16
+    clip-to-geometry true
+}
+
+// swayimg: floating
+window-rule {
+    match app-id=r#"^swayimg$"#
+    open-floating true
+}
+
+// Firefox PiP: floating
+window-rule {
+    match app-id=r#"^firefox$"# title=r#"^Picture-in-Picture$"#
+    open-floating true
+}
+
+// Neovim (foot-nvim): maximized
+window-rule {
+    match app-id="foot-nvim"
+    open-maximized true
+}
+
+// ─── Workspaces (fixed) ──────────────────────────────────────────────────────
+workspace "1"
+workspace "2"
+workspace "3"
+workspace "4"
+workspace "5"
+workspace "6"
+workspace "7"
+workspace "8"
+workspace "9"
+workspace "10"
+
+// ─── Environment ─────────────────────────────────────────────────────────────
+environment {
+    GTK_THEME "Adwaita:dark"
+    XDG_DATA_DIRS "/usr/local/share:/usr/share:/var/lib/flatpak/exports/share:~/.local/share/flatpak/exports/share"
+}
+
+// ─── Spawn at startup ────────────────────────────────────────────────────────
+spawn-at-startup "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
+spawn-at-startup "swww-daemon"
+spawn-at-startup "ags" "run"
+spawn-at-startup "bash" "-c" "wl-paste --watch cliphist store"
+spawn-at-startup "bash" "-c" "wl-paste --type image --watch cliphist store"
+
+// ─── Key Bindings ────────────────────────────────────────────────────────────
+binds {
+    // ── Applications ─────────────────────────────────────────────────────
+    Mod+T           { spawn "foot"; }
+    Mod+E           { spawn "thunar"; }
+    Mod+D           { spawn "ags" "request" "toggle-launcher"; }
+    Mod+N           { spawn "ags" "request" "toggle-sidebar"; }
+    Mod+W           { spawn "set-bg.sh"; }
+
+    // ── Window management ────────────────────────────────────────────────
+    Mod+Q           { close-window; }
+    Mod+Shift+Q     { close-window; }
+    Mod+F           { maximize-column; }
+    Mod+Shift+F     { fullscreen-window; }
+    Mod+V           { toggle-window-floating; }
+    Mod+Shift+R     { spawn "bash" "-c" "ags quit; sleep 0.3; cd ~/.dotfiles/ags/.config/ags && ags run &"; }
+
+    // ── Focus (vim + arrows) ─────────────────────────────────────────────
+    Mod+H           { focus-column-left; }
+    Mod+J           { focus-window-or-workspace-down; }
+    Mod+K           { focus-window-or-workspace-up; }
+    Mod+L           { focus-column-right; }
+
+    Mod+Left        { focus-column-left; }
+    Mod+Down        { focus-window-or-workspace-down; }
+    Mod+Up          { focus-window-or-workspace-up; }
+    Mod+Right       { focus-column-right; }
+
+    // ── Move windows (vim + arrows) ──────────────────────────────────────
+    Mod+Shift+H     { move-column-left; }
+    Mod+Shift+J     { move-window-down-or-to-workspace-down; }
+    Mod+Shift+K     { move-window-up-or-to-workspace-up; }
+    Mod+Shift+L     { move-column-right; }
+
+    Mod+Shift+Left  { move-column-left; }
+    Mod+Shift+Down  { move-window-down-or-to-workspace-down; }
+    Mod+Shift+Up    { move-window-up-or-to-workspace-up; }
+    Mod+Shift+Right { move-column-right; }
+
+    // ── Column sizing ────────────────────────────────────────────────────
+    Mod+Minus       { set-column-width "-10%"; }
+    Mod+Equal       { set-column-width "+10%"; }
+    Mod+Shift+Minus { set-window-height "-10%"; }
+    Mod+Shift+Equal { set-window-height "+10%"; }
+    Mod+R           { switch-preset-column-width; }
+
+    // ── Consume / expel windows between columns ─────────────────────────
+    Mod+BracketLeft  { consume-or-expel-window-left; }
+    Mod+BracketRight { consume-or-expel-window-right; }
+
+    // ── Workspaces ───────────────────────────────────────────────────────
+    Mod+1           { focus-workspace 1; }
+    Mod+2           { focus-workspace 2; }
+    Mod+3           { focus-workspace 3; }
+    Mod+4           { focus-workspace 4; }
+    Mod+5           { focus-workspace 5; }
+    Mod+6           { focus-workspace 6; }
+    Mod+7           { focus-workspace 7; }
+    Mod+8           { focus-workspace 8; }
+    Mod+9           { focus-workspace 9; }
+    Mod+0           { focus-workspace 10; }
+
+    Mod+Shift+1     { move-column-to-workspace 1; }
+    Mod+Shift+2     { move-column-to-workspace 2; }
+    Mod+Shift+3     { move-column-to-workspace 3; }
+    Mod+Shift+4     { move-column-to-workspace 4; }
+    Mod+Shift+5     { move-column-to-workspace 5; }
+    Mod+Shift+6     { move-column-to-workspace 6; }
+    Mod+Shift+7     { move-column-to-workspace 7; }
+    Mod+Shift+8     { move-column-to-workspace 8; }
+    Mod+Shift+9     { move-column-to-workspace 9; }
+    Mod+Shift+0     { move-column-to-workspace 10; }
+
+    // ── Screenshot ───────────────────────────────────────────────────────
+    Mod+Shift+S     { spawn "bash" "-c" "grim -g \"$(slurp)\" - | wl-copy && notify-send 'Screenshot' 'Area copied to clipboard'"; }
+    Print           { spawn "bash" "-c" "grim - | wl-copy && notify-send 'Screenshot' 'Screen copied to clipboard'"; }
+    Alt+Print       { screenshot-window; }
+
+    // ── Clipboard ───────────────────────────────────────────────────────
+    Mod+C           { spawn "ags" "request" "toggle-clipboard"; }
+
+    // ── Media / Volume / Brightness (allow-when-locked) ──────────────────
+    XF86AudioRaiseVolume  allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"; }
+    XF86AudioLowerVolume  allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }
+    XF86AudioMute         allow-when-locked=true { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }
+    XF86AudioMicMute      allow-when-locked=true { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SOURCE@" "toggle"; }
+
+    XF86AudioPlay         allow-when-locked=true { spawn "playerctl" "play-pause"; }
+    XF86AudioNext         allow-when-locked=true { spawn "playerctl" "next"; }
+    XF86AudioPrev         allow-when-locked=true { spawn "playerctl" "previous"; }
+    XF86AudioStop         allow-when-locked=true { spawn "playerctl" "stop"; }
+
+    XF86MonBrightnessUp   allow-when-locked=true { spawn "brightnessctl" "set" "5%+"; }
+    XF86MonBrightnessDown allow-when-locked=true { spawn "brightnessctl" "set" "5%-"; }
+
+    // ── Session ──────────────────────────────────────────────────────────
+    Mod+Shift+E     { quit; }
+    Mod+Shift+P     { power-off-monitors; }
+}

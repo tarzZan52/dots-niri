@@ -1,0 +1,6 @@
+{
+    "dependencies": {
+        "ags": "file:/usr/share/ags/js",
+        "gnim": "file:/usr/share/ags/js/node_modules/gnim"
+    }
+}

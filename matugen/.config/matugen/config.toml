@@ -1,0 +1,29 @@
+[config]
+type = "scheme-tonal-spot"
+json_format = "hex"
+reload_apps = true
+reload_apps_list = { niri = true }
+
+[templates.niri]
+input_path = "~/.config/matugen/templates/config-niri.kdl"
+output_path = "~/.config/niri/config.kdl"
+
+[templates.foot-colors]
+input_path = "~/.config/matugen/templates/colors-foot.ini"
+output_path = "~/.config/foot/colors.ini"
+
+[templates.ags-colors]
+input_path = "~/.config/matugen/templates/colors-ags.scss"
+output_path = "~/.dotfiles/ags/.config/ags/scss/_colors.scss"
+
+[templates.gtk3]
+input_path = "~/.config/matugen/templates/gtk3-colors.css"
+output_path = "~/.config/gtk-3.0/gtk.css"
+
+[templates.gtk4]
+input_path = "~/.config/matugen/templates/gtk3-colors.css"
+output_path = "~/.config/gtk-4.0/gtk.css"
+
+[templates.starship]
+input_path = "~/.config/matugen/templates/starship.toml"
+output_path = "~/.config/starship.toml"
