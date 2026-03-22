@@ -125,6 +125,9 @@ PACMAN_PKGS=(
     # clipboard & screenshots
     cliphist grim slurp
 
+    # compositor & wallpaper (in extra repo)
+    niri swww
+
     # fonts
     ttf-jetbrains-mono-nerd noto-fonts noto-fonts-cjk noto-fonts-emoji
 
@@ -137,21 +140,12 @@ PACMAN_PKGS=(
 
 # AUR packages
 AUR_PKGS=(
-    # compositor
-    niri
-
     # widget shell (AGS v3 + astal libs)
     aylurs-gtk-shell
     libastal-git
     libastal-4-git
     libastal-io-git
     libastal-tray-git
-
-    # wallpaper
-    swww
-
-    # color generation
-    matugen-bin
 )
 
 # VMware-specific
@@ -180,6 +174,22 @@ install_aur() {
     if ! paru -S --needed --noconfirm "${AUR_PKGS[@]}"; then
         warn "Some AUR packages may have failed — check output above"
         ERRORS+=("Some AUR packages failed")
+    fi
+
+    # matugen: use prebuilt binary on x86_64, build from source on ARM
+    if ! command -v matugen &>/dev/null; then
+        if [[ "$ARCH" == "x86_64" ]]; then
+            info "Installing matugen-bin (prebuilt x86_64)..."
+            paru -S --needed --noconfirm matugen-bin || {
+                warn "matugen-bin failed, trying source build..."
+                paru -S --needed --noconfirm matugen
+            }
+        else
+            info "Installing matugen (source build for $ARCH)..."
+            paru -S --needed --noconfirm matugen
+        fi
+    else
+        ok "matugen already installed"
     fi
 }
 
