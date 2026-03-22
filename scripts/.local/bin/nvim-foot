@@ -1,0 +1,2 @@
+#!/bin/sh
+foot --app-id foot-nvim --override pad=0x0 --working-directory="$HOME" -e /usr/bin/nvim "$@"

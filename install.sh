@@ -112,6 +112,9 @@ PACMAN_PKGS=(
     # pixbuf (clipboard thumbnails)
     gdk-pixbuf2
 
+    # editor
+    neovim
+
     # file manager
     thunar
 
@@ -251,7 +254,7 @@ deploy_stow() {
         swww
     )
 
-    mkdir -p "$HOME/.config" "$HOME/.local/bin"
+    mkdir -p "$HOME/.config" "$HOME/.local/bin" "$HOME/.local/share/applications"
 
     for pkg in "${stow_pkgs[@]}"; do
         local pkg_dir="$DOTFILES_DIR/$pkg"
@@ -314,6 +317,11 @@ setup_shell_and_services() {
         ok "Default shell is already zsh"
     fi
 
+    # Enable NetworkManager
+    info "Enabling NetworkManager..."
+    sudo systemctl enable --now NetworkManager.service 2>/dev/null && \
+        ok "NetworkManager" || warn "NetworkManager failed"
+
     # Enable audio
     info "Enabling audio services..."
     systemctl --user enable --now pipewire.socket 2>/dev/null && \
@@ -336,7 +344,7 @@ verify() {
     info "Checking core binaries..."
     local bins=(
         niri foot ags sass matugen swww stow
-        zsh starship zoxide fastfetch
+        zsh starship zoxide fastfetch nvim
         grim slurp wl-copy cliphist
         playerctl brightnessctl nmcli
         thunar
