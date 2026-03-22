@@ -97,6 +97,9 @@ PACMAN_PKGS=(
     # wayland compositor deps
     polkit-gnome xdg-desktop-portal xdg-desktop-portal-gtk
 
+    # networking
+    networkmanager
+
     # wayland utilities
     wl-clipboard grim slurp libnotify xdg-utils
 
@@ -106,6 +109,9 @@ PACMAN_PKGS=(
     # node (for AGS)
     nodejs npm
 
+    # pixbuf (clipboard thumbnails)
+    gdk-pixbuf2
+
     # file manager
     thunar
 
@@ -113,11 +119,8 @@ PACMAN_PKGS=(
     pipewire wireplumber pipewire-pulse pipewire-alsa
     playerctl brightnessctl
 
-    # clipboard history
-    cliphist
-
-    # screenshot
-    grim slurp
+    # clipboard & screenshots
+    cliphist grim slurp
 
     # fonts
     ttf-jetbrains-mono-nerd noto-fonts noto-fonts-cjk noto-fonts-emoji
@@ -244,6 +247,8 @@ deploy_stow() {
         matugen
         scripts
         zsh
+        starship
+        swww
     )
 
     mkdir -p "$HOME/.config" "$HOME/.local/bin"
@@ -333,7 +338,7 @@ verify() {
         niri foot ags sass matugen swww stow
         zsh starship zoxide fastfetch
         grim slurp wl-copy cliphist
-        playerctl brightnessctl
+        playerctl brightnessctl nmcli
         thunar
     )
     for cmd in "${bins[@]}"; do
