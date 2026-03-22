@@ -2,6 +2,13 @@
 #  ZSH Config — Material You Rice
 # ══════════════════════════════════════════════
 
+# ── Autostart niri (tty1 or VMware pts/0) ──
+if [[ -z "$WAYLAND_DISPLAY" ]] && [[ -z "$DISPLAY" ]]; then
+    if [[ "$(tty)" == /dev/tty1 ]] || [[ "$(tty)" == /dev/pts/0 && "$(systemd-detect-virt 2>/dev/null)" != "none" ]]; then
+        exec niri --session
+    fi
+fi
+
 # Disable grml prompt (starship takes over)
 prompt off
 
