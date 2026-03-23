@@ -191,6 +191,9 @@ install_pacman() {
         warn "Some pacman packages may have failed — check output above"
         ERRORS+=("Some pacman packages failed")
     fi
+
+    # Rebuild font cache after installing fonts
+    sudo fc-cache -f 2>/dev/null || true
 }
 
 install_aur() {
@@ -265,19 +268,14 @@ install_vmware_extras() {
             git clone --depth=1 https://gitlab.archlinux.org/archlinux/packaging/packages/open-vm-tools.git
             cd open-vm-tools
 
-            # Patch PKGBUILD: allow aarch64, add CFLAGS fix, patch glib stubs in prepare()
+            # Patch PKGBUILD: allow aarch64 + CFLAGS fix
             sed -i "s/arch=('x86_64')/arch=('x86_64' 'aarch64')/" PKGBUILD
             sed -i '/^build[[:space:]]*()[[:space:]]*{/a\  export CFLAGS="$CFLAGS -Wno-discarded-qualifiers"' PKGBUILD
 
-            # Inject glib stubs patch into prepare() so it happens before build()
-            # Add a prepare function if not present, or append to existing one
-            if grep -q '^prepare()' PKGBUILD; then
-                sed -i '/^prepare()[[:space:]]*{/a\  local _glib="$srcdir/${pkgname}-${pkgver}/lib/rpcChannel/glib_stubs.c"\n  [[ -f "$_glib" ]] \&\& sed -i '"'"'/void g_free/i #undef g_free'"'"' "$_glib"' PKGBUILD
-            else
-                sed -i '/^build()[[:space:]]*{/i\prepare() {\n  local _glib="$srcdir/${pkgname}-${pkgver}/lib/rpcChannel/glib_stubs.c"\n  [[ -f "$_glib" ]] \&\& sed -i '"'"'/void g_free/i #undef g_free'"'"' "$_glib"\n}\n' PKGBUILD
-            fi
+            # Append glib stubs patch to prepare()
+            sed -i '/^prepare()[[:space:]]*{/a\  local _glib="${srcdir}/${pkgname}/open-vm-tools/lib/rpcChannel/glib_stubs.c"\n  if [[ -f "$_glib" ]]; then sed -i "/void g_free/i #undef g_free" "$_glib"; fi' PKGBUILD
 
-            # Single makepkg call — handles download, extract, prepare, build, package
+            # Build and install
             makepkg -si --noconfirm
         ) && ok "open-vm-tools built and installed" || {
             warn "open-vm-tools build failed"
