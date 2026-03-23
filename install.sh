@@ -113,6 +113,7 @@ PACMAN_PKGS=(
 
     # wayland compositor deps
     polkit-gnome xdg-desktop-portal xdg-desktop-portal-gtk
+    mesa xorg-xwayland
 
     # networking
     networkmanager
@@ -165,8 +166,7 @@ AUR_PKGS=(
     libastal-tray-git
 )
 
-# VMware-specific
-VMWARE_PKGS=(open-vm-tools)
+# VMware x86-only drivers
 VMWARE_PKGS_X86=(xf86-video-vmware xf86-input-vmmouse)
 
 # ─── Install packages ───────────────────────────────────────────────────────
@@ -217,22 +217,66 @@ install_vmware_extras() {
 
     step "Step 2.5 — VMware extras"
 
-    # open-vm-tools (may not be available on all arches)
-    if ! sudo pacman -S --needed --noconfirm "${VMWARE_PKGS[@]}"; then
-        warn "open-vm-tools not available — trying AUR..."
-        paru -S --needed --noconfirm open-vm-tools 2>/dev/null || \
-            warn "open-vm-tools not available for $ARCH — skipping"
+    # Fix TTY: remove kmscon if present, ensure getty@tty1
+    if pacman -Qi kmscon &>/dev/null; then
+        info "Removing kmscon..."
+        sudo pacman -Rns --noconfirm kmscon && ok "kmscon removed" || true
+    fi
+    sudo systemctl enable getty@tty1.service 2>/dev/null || true
+    sudo systemctl set-default multi-user.target
+    ok "TTY1 getty enabled, multi-user target set"
+
+    # Install open-vm-tools
+    if pacman -Qi open-vm-tools &>/dev/null; then
+        ok "open-vm-tools already installed"
+    elif [[ "$ARCH" == "x86_64" ]]; then
+        # x86_64: available in official repos
+        sudo pacman -S --needed --noconfirm open-vm-tools && \
+            ok "open-vm-tools installed" || warn "open-vm-tools install failed"
+    else
+        # aarch64: not in repos, build from Arch packaging with patches
+        info "Building open-vm-tools from source for $ARCH..."
+        sudo pacman -S --needed --noconfirm \
+            fuse3 gtkmm3 libcanberra libdnet libmspack libsigc++ \
+            libxss open-iscsi procps-ng uriparser xmlsec rpcsvc-proto
+
+        local build_dir
+        build_dir=$(mktemp -d)
+        (
+            cd "$build_dir"
+            git clone --depth=1 https://gitlab.archlinux.org/archlinux/packaging/packages/open-vm-tools.git
+            cd open-vm-tools
+
+            # Patch PKGBUILD to allow aarch64
+            sed -i "s/arch=('x86_64')/arch=('x86_64' 'aarch64')/" PKGBUILD
+            sed -i '/^build[[:space:]]*()[[:space:]]*{/a\  export CFLAGS="$CFLAGS -Wno-discarded-qualifiers"' PKGBUILD
+
+            # Download sources
+            makepkg --nobuild -s --noconfirm
+
+            # Patch glib stubs compilation issue
+            local glib_stubs="src/open-vm-tools/open-vm-tools/lib/rpcChannel/glib_stubs.c"
+            if [[ -f "$glib_stubs" ]]; then
+                sed -i '/void g_free/i #undef g_free' "$glib_stubs"
+            fi
+
+            # Build and install
+            makepkg -es --noconfirm
+            sudo pacman -U --noconfirm open-vm-tools-*.pkg.tar.*
+        ) && ok "open-vm-tools built and installed" || {
+            warn "open-vm-tools build failed"
+            ERRORS+=("open-vm-tools build from source failed")
+        }
+        rm -rf "$build_dir"
     fi
 
     # x86-only video/input drivers
     if [[ "$ARCH" == "x86_64" ]]; then
         sudo pacman -S --needed --noconfirm "${VMWARE_PKGS_X86[@]}" || \
             warn "VMware x86 drivers may have failed"
-    else
-        info "Skipping x86 VMware drivers on $ARCH"
     fi
 
-    # Enable services
+    # Enable VMware services
     sudo systemctl enable --now vmtoolsd.service 2>/dev/null && \
         ok "vmtoolsd enabled" || warn "Could not enable vmtoolsd"
     sudo systemctl enable --now vmware-vmblock-fuse.service 2>/dev/null && \
