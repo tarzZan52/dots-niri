@@ -124,8 +124,8 @@ PACMAN_PKGS=(
     # theming & css
     dart-sass
 
-    # node (for AGS)
-    nodejs npm
+    # node & go (for AGS)
+    nodejs npm go
 
     # pixbuf (clipboard thumbnails)
     gdk-pixbuf2
@@ -187,8 +187,18 @@ install_aur() {
         return
     fi
 
+    # Ensure DNS works for build tools (Go, Cargo) — VMware NAT DNS can be flaky
+    if ! grep -q '^nameserver 8.8.8.8' /etc/resolv.conf 2>/dev/null; then
+        info "Adding fallback DNS (8.8.8.8) for build tools..."
+        sudo sed -i '1i nameserver 8.8.8.8' /etc/resolv.conf
+    fi
+
+    # On aarch64, AUR PKGBUILDs lack arch support — use --ignorearch
+    local paru_flags=(--needed --noconfirm)
+    [[ "$ARCH" != "x86_64" ]] && paru_flags+=(--mflags='--ignorearch')
+
     info "Installing AUR packages with paru..."
-    if ! paru -S --needed --noconfirm "${AUR_PKGS[@]}"; then
+    if ! paru -S "${paru_flags[@]}" "${AUR_PKGS[@]}"; then
         warn "Some AUR packages may have failed — check output above"
         ERRORS+=("Some AUR packages failed")
     fi
@@ -199,11 +209,11 @@ install_aur() {
             info "Installing matugen-bin (prebuilt x86_64)..."
             paru -S --needed --noconfirm matugen-bin || {
                 warn "matugen-bin failed, trying source build..."
-                paru -S --needed --noconfirm matugen
+                paru -S "${paru_flags[@]}" matugen
             }
         else
             info "Installing matugen (source build for $ARCH)..."
-            paru -S --needed --noconfirm matugen
+            paru -S "${paru_flags[@]}" matugen
         fi
     else
         ok "matugen already installed"
