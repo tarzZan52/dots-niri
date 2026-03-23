@@ -476,7 +476,7 @@ verify() {
 
     echo ""
     info "Checking fonts..."
-    fc-cache -f 2>/dev/null || true
+    sudo fc-cache -f 2>/dev/null || fc-cache -f 2>/dev/null || true
     if command -v fc-list &>/dev/null; then
         for font in "JetBrainsMono Nerd Font" "Noto Sans"; do
             if fc-list 2>/dev/null | grep -qi "$font"; then
