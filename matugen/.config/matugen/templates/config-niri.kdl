@@ -101,6 +101,7 @@ environment {
 // ─── Spawn at startup ────────────────────────────────────────────────────────
 spawn-at-startup "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
 spawn-at-startup "swww-daemon"
+spawn-at-startup "bash" "-c" "sleep 1 && $HOME/.local/bin/set-bg.sh"
 spawn-at-startup "ags" "run"
 spawn-at-startup "bash" "-c" "wl-paste --watch cliphist store"
 spawn-at-startup "bash" "-c" "wl-paste --type image --watch cliphist store"
@@ -113,6 +114,9 @@ binds {
     Mod+D           { spawn "ags" "request" "toggle-launcher"; }
     Mod+N           { spawn "ags" "request" "toggle-sidebar"; }
     Mod+W           { spawn "bash" "-c" "$HOME/.local/bin/set-bg.sh"; }
+
+    // ── Overview ─────────────────────────────────────────────────────────
+    Mod+O           { toggle-overview; }
 
     // ── Window management ────────────────────────────────────────────────
     Mod+Q           { close-window; }

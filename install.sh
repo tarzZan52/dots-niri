@@ -553,12 +553,21 @@ main() {
         deploy_stow
     fi
 
-    # AGS setup (always, needs stow first)
+    # AGS setup (npm install, but compile SCSS after colors)
     setup_ags
 
     if ! $skip_install; then
         setup_colors
         setup_shell_and_services
+    fi
+
+    # Compile AGS SCSS after matugen generates _colors.scss
+    local ags_dir="$HOME/.config/ags"
+    if command -v sass &>/dev/null && [[ -f "$ags_dir/style.scss" ]]; then
+        info "Compiling AGS styles with Material You colors..."
+        sass --no-source-map --style=compressed \
+            "$ags_dir/style.scss" "$ags_dir/style-compiled.css" && \
+            ok "SCSS compiled" || warn "SCSS compilation failed"
     fi
 
     verify
