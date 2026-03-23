@@ -112,7 +112,7 @@ binds {
     Mod+E           { spawn "thunar"; }
     Mod+D           { spawn "ags" "request" "toggle-launcher"; }
     Mod+N           { spawn "ags" "request" "toggle-sidebar"; }
-    Mod+W           { spawn "set-bg.sh"; }
+    Mod+W           { spawn "bash" "-c" "$HOME/.local/bin/set-bg.sh"; }
 
     // ── Window management ────────────────────────────────────────────────
     Mod+Q           { close-window; }
@@ -179,8 +179,8 @@ binds {
     Mod+Shift+0     { move-column-to-workspace 10; }
 
     // ── Screenshot ───────────────────────────────────────────────────────
-    Mod+Shift+S     { spawn "bash" "-c" "grim -g \"$(slurp)\" - | wl-copy && notify-send 'Screenshot' 'Area copied to clipboard'"; }
-    Print           { spawn "bash" "-c" "grim - | wl-copy && notify-send 'Screenshot' 'Screen copied to clipboard'"; }
+    Mod+Shift+S     { spawn "bash" "-c" "f=~/Pictures/Screenshots/$(date +%Y%m%d_%H%M%S).png && mkdir -p ~/Pictures/Screenshots && grim -g \"$(slurp)\" \"$f\" && wl-copy < \"$f\" && notify-send 'Screenshot' \"$f\""; }
+    Print           { spawn "bash" "-c" "f=~/Pictures/Screenshots/$(date +%Y%m%d_%H%M%S).png && mkdir -p ~/Pictures/Screenshots && grim \"$f\" && wl-copy < \"$f\" && notify-send 'Screenshot' \"$f\""; }
     Alt+Print       { screenshot-window; }
 
     // ── Clipboard ───────────────────────────────────────────────────────
