@@ -301,8 +301,6 @@ deploy_stow() {
         matugen
         scripts
         zsh
-        starship
-        swww
     )
 
     mkdir -p "$HOME/.config" "$HOME/.local/bin" "$HOME/.local/share/applications"
@@ -310,13 +308,24 @@ deploy_stow() {
     for pkg in "${stow_pkgs[@]}"; do
         local pkg_dir="$DOTFILES_DIR/$pkg"
         if [[ -d "$pkg_dir" ]]; then
+            # Check if pkg has any files (skip empty dirs)
+            if [[ -z "$(find "$pkg_dir" -type f 2>/dev/null | head -1)" ]]; then
+                warn "Skipping $pkg (empty)"
+                continue
+            fi
             info "Stowing ${BOLD}$pkg${NC}..."
-            stow --dir="$DOTFILES_DIR" --target="$HOME" --restow "$pkg" && \
+            # --adopt: take over existing files (e.g. .zshrc) into stow management
+            stow --dir="$DOTFILES_DIR" --target="$HOME" --adopt --restow "$pkg" && \
                 ok "$pkg" || { err "Failed to stow $pkg"; ERRORS+=("stow $pkg failed"); }
         else
             warn "Skipping $pkg (not found)"
         fi
     done
+
+    # Restore dotfiles content after --adopt (adopt may overwrite repo files)
+    info "Restoring dotfiles from git..."
+    (cd "$DOTFILES_DIR" && git checkout -- . 2>/dev/null) && \
+        ok "Dotfiles restored" || warn "git checkout failed"
 }
 
 # ─── Generate Material You colors ───────────────────────────────────────────
