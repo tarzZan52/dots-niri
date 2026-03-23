@@ -58,13 +58,18 @@ detect_env() {
 
 # ─── Bootstrap paru ─────────────────────────────────────────────────────────
 bootstrap_paru() {
-    if command -v paru &>/dev/null; then
-        ok "paru already installed"
+    info "Installing paru (AUR helper)..."
+    sudo pacman -S --needed --noconfirm base-devel git
+
+    # (Re)build paru if missing or broken (e.g. libalpm version mismatch after pacman -Syu)
+    if paru --version &>/dev/null 2>&1; then
+        ok "paru already installed and working"
         return
     fi
 
-    info "Installing paru (AUR helper)..."
-    sudo pacman -S --needed --noconfirm base-devel git
+    if command -v paru &>/dev/null; then
+        warn "paru binary exists but is broken (likely libalpm mismatch) — rebuilding..."
+    fi
 
     local tmp
     tmp=$(mktemp -d)
@@ -72,7 +77,7 @@ bootstrap_paru() {
     (cd "$tmp/paru" && makepkg -si --noconfirm)
     rm -rf "$tmp"
 
-    if command -v paru &>/dev/null; then
+    if paru --version &>/dev/null 2>&1; then
         ok "paru installed"
     else
         err "paru installation failed"
@@ -122,8 +127,8 @@ PACMAN_PKGS=(
     pipewire wireplumber pipewire-pulse pipewire-alsa
     playerctl brightnessctl
 
-    # clipboard & screenshots
-    cliphist grim slurp
+    # clipboard history
+    cliphist
 
     # compositor & wallpaper (in extra repo)
     niri swww
@@ -200,8 +205,12 @@ install_vmware_extras() {
 
     step "Step 2.5 — VMware extras"
 
-    # open-vm-tools works on both x86 and arm
-    sudo pacman -S --needed --noconfirm "${VMWARE_PKGS[@]}"
+    # open-vm-tools (may not be available on all arches)
+    if ! sudo pacman -S --needed --noconfirm "${VMWARE_PKGS[@]}"; then
+        warn "open-vm-tools not available — trying AUR..."
+        paru -S --needed --noconfirm open-vm-tools 2>/dev/null || \
+            warn "open-vm-tools not available for $ARCH — skipping"
+    fi
 
     # x86-only video/input drivers
     if [[ "$ARCH" == "x86_64" ]]; then
@@ -451,8 +460,8 @@ main() {
     done
 
     if ! $skip_install; then
-        bootstrap_paru
         install_pacman
+        bootstrap_paru
         install_aur
         install_vmware_extras
     fi

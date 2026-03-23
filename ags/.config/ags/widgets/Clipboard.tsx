@@ -16,9 +16,22 @@ interface ClipEntry {
 }
 
 const [clipOpen, setClipOpen] = createState(false)
-const [clipVisible, setClipVisible] = createState(false)
 const [entries, setEntries] = createState<ClipEntry[]>([])
 const [query, setQuery] = createState("")
+const [filtered, setFiltered] = createState<ClipEntry[]>([])
+
+function updateFiltered() {
+    const q = (query.get() as string).toLowerCase()
+    const es = entries.get() as ClipEntry[]
+    if (!q) {
+        setFiltered(es)
+    } else {
+        setFiltered(es.filter((e) =>
+            e.preview.toLowerCase().includes(q)
+            || e.imageInfo.toLowerCase().includes(q)
+        ))
+    }
+}
 
 const THUMB_DIR = "/tmp/ags-clip-thumbs"
 
@@ -88,6 +101,7 @@ function loadEntries() {
         console.error("[Clipboard] loadEntries failed:", e)
         setEntries([])
     }
+    updateFiltered()
 }
 
 function selectEntry(entry: ClipEntry) {
@@ -100,22 +114,28 @@ function deleteEntry(entry: ClipEntry) {
     const escaped = entry.raw.replace(/'/g, "'\\''")
     execAsync(["bash", "-c", `echo '${escaped}' | cliphist delete`]).catch(() => {})
     setEntries((es) => es.filter((e) => e.id !== entry.id))
+    timeout(10, () => updateFiltered())
 }
 
 export function toggleClipboard() {
-    if (clipOpen.get()) {
+    const win = app.get_window("clipboard")
+    if (!win) return
+    if (win.visible) {
         hideClipboard()
     } else {
         loadEntries()
         setQuery("")
-        setClipVisible(true)
+        win.visible = true
         timeout(10, () => setClipOpen(true))
     }
 }
 
 function hideClipboard() {
     setClipOpen(false)
-    timeout(250, () => setClipVisible(false))
+    const win = app.get_window("clipboard")
+    timeout(250, () => {
+        if (win) win.visible = false
+    })
 }
 
 function ScaledThumb({ path }: { path: string }) {
@@ -131,17 +151,9 @@ function ScaledThumb({ path }: { path: string }) {
 
 export default function Clipboard() {
     let win: Astal.Window
+    let searchEntry: Gtk.Entry
 
     onCleanup(() => win.destroy())
-
-    const filtered = entries((es) => {
-        const q = query.get().toLowerCase()
-        if (!q) return es
-        return es.filter((e) =>
-            e.preview.toLowerCase().includes(q)
-            || e.imageInfo.toLowerCase().includes(q)
-        )
-    })
 
     return (
         <window
@@ -155,8 +167,8 @@ export default function Clipboard() {
                 Astal.WindowAnchor.RIGHT
             }
             exclusivity={Astal.Exclusivity.IGNORE}
-            keymode={Astal.Keymode.EXCLUSIVE}
-            visible={clipVisible}
+            keymode={Astal.Keymode.ON_DEMAND}
+            visible={false}
             onKeyPressEvent={(_self: Astal.Window, event: Gdk.Event) => {
                 const [, keyval] = event.get_keyval()
                 if (keyval === Gdk.KEY_Escape) {
@@ -164,6 +176,12 @@ export default function Clipboard() {
                     return true
                 }
                 return false
+            }}
+            onNotifyVisible={(self: Astal.Window) => {
+                if (self.visible && searchEntry) {
+                    searchEntry.set_text("")
+                    timeout(50, () => searchEntry.grab_focus())
+                }
             }}
         >
             <box halign={Gtk.Align.CENTER} valign={Gtk.Align.START} class="clip-anchor">
@@ -177,12 +195,22 @@ export default function Clipboard() {
                             class="clip-search"
                             placeholderText="Search clipboard..."
                             $={(self) => {
+                                searchEntry = self
                                 const u = clipOpen.subscribe((open) => {
-                                    if (open) timeout(50, () => self.grab_focus())
+                                    if (open) {
+                                        self.set_text("")
+                                        timeout(50, () => {
+                                            self.grab_focus()
+                                            self.set_position(-1)
+                                        })
+                                    }
                                 })
                                 self.connect("destroy", () => u())
                             }}
-                            onChanged={(self: Gtk.Entry) => setQuery(self.text)}
+                            onChanged={(self: Gtk.Entry) => {
+                                setQuery(self.text)
+                                updateFiltered()
+                            }}
                         />
 
                         <scrollable class="clip-scroll" vexpand heightRequest={440}>
