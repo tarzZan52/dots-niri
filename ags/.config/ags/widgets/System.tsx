@@ -125,17 +125,17 @@ const netIcon = createPoll(getNetwork(), 5000, getNetwork)
 
 export default function System() {
     return (
-        <box class="island system" spacing={4}>
+        <box class="island system" spacing={6}>
             {multiLayout && (
                 <box class="sys-btn">
                     <label class="kbd-label" label={layoutName} />
                 </box>
             )}
-            <box class="sys-btn" spacing={4}>
+            <box class="sys-btn" spacing={6}>
                 <label class="sys-icon-text" label="󰙴" />
                 <label class="sys-label" label={cpuLabel} />
             </box>
-            <box class="sys-btn" spacing={4}>
+            <box class="sys-btn" spacing={6}>
                 <label class="sys-icon-text" label="󰍛" />
                 <label class="sys-label" label={ramLabel} />
             </box>
@@ -152,12 +152,12 @@ export default function System() {
                     }
                 }}
             >
-                <box class="sys-btn" spacing={4}>
+                <box class="sys-btn" spacing={6}>
                     <icon class="sys-icon" icon={volIconName} />
                     <label class="sys-label" label={volLabel} />
                 </box>
             </eventbox>
-            <box class="sys-btn" spacing={4}>
+            <box class="sys-btn" spacing={6}>
                 <icon class="sys-icon" icon={netIcon} />
             </box>
             <eventbox onClick={toggleSidebar}>
