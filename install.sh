@@ -59,7 +59,10 @@ detect_env() {
 # ─── Bootstrap paru ─────────────────────────────────────────────────────────
 bootstrap_paru() {
     info "Installing paru (AUR helper)..."
-    sudo pacman -S --needed --noconfirm base-devel git
+    local paru_deps=(base-devel git)
+    # paru source build needs rust on non-x86_64
+    [[ "$ARCH" != "x86_64" ]] && paru_deps+=(rust)
+    sudo pacman -S --needed --noconfirm "${paru_deps[@]}"
 
     # (Re)build paru if missing or broken (e.g. libalpm version mismatch after pacman -Syu)
     if paru --version &>/dev/null 2>&1; then
@@ -73,7 +76,12 @@ bootstrap_paru() {
 
     local tmp
     tmp=$(mktemp -d)
-    git clone https://aur.archlinux.org/paru-bin.git "$tmp/paru"
+    if [[ "$ARCH" == "x86_64" ]]; then
+        git clone https://aur.archlinux.org/paru-bin.git "$tmp/paru"
+    else
+        info "Building paru from source for $ARCH..."
+        git clone https://aur.archlinux.org/paru.git "$tmp/paru"
+    fi
     (cd "$tmp/paru" && makepkg -si --noconfirm)
     rm -rf "$tmp"
 
@@ -169,8 +177,8 @@ install_pacman() {
 
 install_aur() {
     step "Step 2/7 — AUR packages"
-    if ! command -v paru &>/dev/null; then
-        err "paru not available — cannot install AUR packages"
+    if ! paru --version &>/dev/null 2>&1; then
+        err "paru not working — cannot install AUR packages"
         ERRORS+=("AUR packages not installed")
         return
     fi
