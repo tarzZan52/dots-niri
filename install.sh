@@ -164,6 +164,8 @@ AUR_PKGS=(
     libastal-4-git
     libastal-io-git
     libastal-tray-git
+    libastal-notifd-git
+    libastal-apps-git
 )
 
 # VMware x86-only drivers
@@ -474,6 +476,7 @@ verify() {
 
     echo ""
     info "Checking fonts..."
+    fc-cache -f 2>/dev/null || true
     if command -v fc-list &>/dev/null; then
         for font in "JetBrainsMono Nerd Font" "Noto Sans"; do
             if fc-list 2>/dev/null | grep -qi "$font"; then
