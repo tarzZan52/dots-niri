@@ -174,6 +174,18 @@ VMWARE_PKGS_X86=(xf86-video-vmware xf86-input-vmmouse)
 # ─── Install packages ───────────────────────────────────────────────────────
 install_pacman() {
     step "Step 1/7 — System packages (pacman)"
+
+    # Ensure DNS works (VMware NAT DNS can be flaky)
+    if ! grep -q '^nameserver 8.8.8.8' /etc/resolv.conf 2>/dev/null; then
+        info "Adding fallback DNS (8.8.8.8)..."
+        sudo sed -i '1i nameserver 8.8.8.8' /etc/resolv.conf
+    fi
+
+    # Refresh pacman keyring (ARM images may have stale keys)
+    info "Refreshing pacman keyring..."
+    sudo pacman-key --init 2>/dev/null || true
+    sudo pacman-key --populate 2>/dev/null || true
+
     info "Updating system and installing packages..."
     if ! sudo pacman -Syu --needed --noconfirm "${PACMAN_PKGS[@]}"; then
         warn "Some pacman packages may have failed — check output above"
@@ -187,12 +199,6 @@ install_aur() {
         err "paru not working — cannot install AUR packages"
         ERRORS+=("AUR packages not installed")
         return
-    fi
-
-    # Ensure DNS works for build tools (Go, Cargo) — VMware NAT DNS can be flaky
-    if ! grep -q '^nameserver 8.8.8.8' /etc/resolv.conf 2>/dev/null; then
-        info "Adding fallback DNS (8.8.8.8) for build tools..."
-        sudo sed -i '1i nameserver 8.8.8.8' /etc/resolv.conf
     fi
 
     # On aarch64, AUR PKGBUILDs lack arch support — use --ignorearch
@@ -259,22 +265,20 @@ install_vmware_extras() {
             git clone --depth=1 https://gitlab.archlinux.org/archlinux/packaging/packages/open-vm-tools.git
             cd open-vm-tools
 
-            # Patch PKGBUILD to allow aarch64
+            # Patch PKGBUILD: allow aarch64, add CFLAGS fix, patch glib stubs in prepare()
             sed -i "s/arch=('x86_64')/arch=('x86_64' 'aarch64')/" PKGBUILD
             sed -i '/^build[[:space:]]*()[[:space:]]*{/a\  export CFLAGS="$CFLAGS -Wno-discarded-qualifiers"' PKGBUILD
 
-            # Download sources
-            makepkg --nobuild -s --noconfirm
-
-            # Patch glib stubs compilation issue
-            local glib_stubs="src/open-vm-tools/open-vm-tools/lib/rpcChannel/glib_stubs.c"
-            if [[ -f "$glib_stubs" ]]; then
-                sed -i '/void g_free/i #undef g_free' "$glib_stubs"
+            # Inject glib stubs patch into prepare() so it happens before build()
+            # Add a prepare function if not present, or append to existing one
+            if grep -q '^prepare()' PKGBUILD; then
+                sed -i '/^prepare()[[:space:]]*{/a\  local _glib="$srcdir/${pkgname}-${pkgver}/lib/rpcChannel/glib_stubs.c"\n  [[ -f "$_glib" ]] \&\& sed -i '"'"'/void g_free/i #undef g_free'"'"' "$_glib"' PKGBUILD
+            else
+                sed -i '/^build()[[:space:]]*{/i\prepare() {\n  local _glib="$srcdir/${pkgname}-${pkgver}/lib/rpcChannel/glib_stubs.c"\n  [[ -f "$_glib" ]] \&\& sed -i '"'"'/void g_free/i #undef g_free'"'"' "$_glib"\n}\n' PKGBUILD
             fi
 
-            # Build and install
-            makepkg -es --noconfirm
-            sudo pacman -U --noconfirm open-vm-tools-*.pkg.tar.*
+            # Single makepkg call — handles download, extract, prepare, build, package
+            makepkg -si --noconfirm
         ) && ok "open-vm-tools built and installed" || {
             warn "open-vm-tools build failed"
             ERRORS+=("open-vm-tools build from source failed")
@@ -390,6 +394,9 @@ setup_colors() {
 
     local wp_dir="$HOME/Pictures/wallpapers"
     mkdir -p "$wp_dir"
+    # Create dirs matugen expects for templates
+    mkdir -p "$HOME/.config/gtk-3.0" "$HOME/.config/gtk-4.0"
+    mkdir -p "$HOME/.dotfiles/ags/.config/ags/scss" 2>/dev/null || true
 
     # Copy bundled wallpapers if present
     if [[ -d "$DOTFILES_DIR/wallpapers" ]]; then
@@ -405,7 +412,7 @@ setup_colors() {
 
     if [[ -n "$wallpaper" ]] && command -v matugen &>/dev/null; then
         info "Generating colors from: $(basename "$wallpaper")"
-        matugen image "$wallpaper" && \
+        matugen image "$wallpaper" -m dark --source-color-index 0 && \
             ok "Material You colors generated" || \
             warn "matugen failed — colors will be generated on first login"
     else
