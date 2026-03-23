@@ -76,6 +76,10 @@ bootstrap_paru() {
 
     local tmp
     tmp=$(mktemp -d)
+    # Remove conflicting paru variant before installing
+    sudo pacman -Rdd --noconfirm paru-bin 2>/dev/null || true
+    sudo pacman -Rdd --noconfirm paru 2>/dev/null || true
+
     if [[ "$ARCH" == "x86_64" ]]; then
         git clone https://aur.archlinux.org/paru-bin.git "$tmp/paru"
     else
