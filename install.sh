@@ -388,7 +388,7 @@ deploy_stow() {
 setup_colors() {
     step "Step 5/7 — Material You color generation"
 
-    local wp_dir="$HOME/Pictures/Wallpaper-Bank/wallpapers"
+    local wp_dir="$HOME/Pictures/wallpapers"
     mkdir -p "$wp_dir"
 
     # Copy bundled wallpapers if present
@@ -410,7 +410,7 @@ setup_colors() {
             warn "matugen failed — colors will be generated on first login"
     else
         warn "No wallpaper found or matugen not installed — skipping color generation"
-        info "Place wallpapers in ${BOLD}~/Pictures/Wallpaper-Bank/wallpapers/${NC}"
+        info "Place wallpapers in ${BOLD}~/Pictures/wallpapers/${NC}"
     fi
 }
 

@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-WALLPAPER_DIR="${WALLPAPER_DIR:-$HOME/Pictures/Wallpaper-Bank/wallpapers}"
+WALLPAPER_DIR="${WALLPAPER_DIR:-$HOME/Pictures/wallpapers}"
 
 # ─── Resolve image path ──────────────────────────────────────────────────────
 if [[ -n "${1:-}" ]]; then

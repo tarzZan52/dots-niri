@@ -132,11 +132,11 @@ export default function System() {
                 </box>
             )}
             <box class="sys-btn" spacing={4}>
-                <icon class="sys-icon" icon="cpu-symbolic" />
+                <label class="sys-icon-text" label="" />
                 <label class="sys-label" label={cpuLabel} />
             </box>
             <box class="sys-btn" spacing={4}>
-                <icon class="sys-icon" icon="memory-symbolic" />
+                <label class="sys-icon-text" label="" />
                 <label class="sys-label" label={ramLabel} />
             </box>
             <eventbox
