@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# dots-niri installer — Niri + AGS + Material You on Arch Linux
+# https://github.com/tarzZan52/dots-niri
+
+set -uo pipefail
+# NOTE: we intentionally do NOT use `set -e` — each step handles its own errors
 
 DOTFILES_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -48,9 +52,11 @@ detect_env() {
     elif [[ -f /sys/class/dmi/id/product_name ]]; then
         local product
         product=$(cat /sys/class/dmi/id/product_name 2>/dev/null | tr '[:upper:]' '[:lower:]')
-        [[ "$product" == *vmware* ]]     && ENV="vmware"
-        [[ "$product" == *virtualbox* ]] && ENV="virtualbox"
-        [[ "$product" == *qemu* ]]       && ENV="qemu"
+        case "$product" in
+            *vmware*)      ENV="vmware" ;;
+            *virtualbox*)  ENV="virtualbox" ;;
+            *qemu*)        ENV="qemu" ;;
+        esac
     fi
 
     info "Environment: ${BOLD}$ENV${NC}"
@@ -60,8 +66,9 @@ detect_env() {
 bootstrap_paru() {
     info "Installing paru (AUR helper)..."
     local paru_deps=(base-devel git)
-    # paru source build needs rust on non-x86_64
-    [[ "$ARCH" != "x86_64" ]] && paru_deps+=(rust)
+    if [[ "$ARCH" != "x86_64" ]]; then
+        paru_deps+=(rust)
+    fi
     sudo pacman -S --needed --noconfirm "${paru_deps[@]}"
 
     # (Re)build paru if missing or broken (e.g. libalpm version mismatch after pacman -Syu)
@@ -99,7 +106,6 @@ bootstrap_paru() {
 
 # ─── Package lists ──────────────────────────────────────────────────────────
 
-# Core system + desktop
 PACMAN_PKGS=(
     # build essentials
     base-devel git curl rsync unzip stow
@@ -144,7 +150,7 @@ PACMAN_PKGS=(
     # clipboard history
     cliphist
 
-    # compositor & wallpaper (in extra repo)
+    # compositor & wallpaper
     niri swww
 
     # fonts
@@ -157,9 +163,7 @@ PACMAN_PKGS=(
     github-cli
 )
 
-# AUR packages
 AUR_PKGS=(
-    # widget shell (AGS v3 + astal libs)
     aylurs-gtk-shell
     libastal-git
     libastal-4-git
@@ -169,14 +173,13 @@ AUR_PKGS=(
     libastal-apps-git
 )
 
-# VMware x86-only drivers
 VMWARE_PKGS_X86=(xf86-video-vmware xf86-input-vmmouse)
 
 # ─── Install packages ───────────────────────────────────────────────────────
 install_pacman() {
     step "Step 1/7 — System packages (pacman)"
 
-    # Ensure DNS works (VMware NAT DNS can be flaky)
+    # Ensure DNS works (VMware NAT DNS can be flaky for Go's resolver)
     if ! grep -q '^nameserver 8.8.8.8' /etc/resolv.conf 2>/dev/null; then
         info "Adding fallback DNS (8.8.8.8)..."
         sudo sed -i '1i nameserver 8.8.8.8' /etc/resolv.conf
@@ -188,12 +191,15 @@ install_pacman() {
     sudo pacman-key --populate 2>/dev/null || true
 
     info "Updating system and installing packages..."
-    if ! sudo pacman -Syu --needed --noconfirm "${PACMAN_PKGS[@]}"; then
+    if sudo pacman -Syu --needed --noconfirm "${PACMAN_PKGS[@]}"; then
+        ok "System packages installed"
+    else
         warn "Some pacman packages may have failed — check output above"
         ERRORS+=("Some pacman packages failed")
     fi
 
-    # Rebuild font cache after installing fonts (both system and user)
+    # Rebuild font cache after installing fonts
+    info "Rebuilding font cache..."
     sudo fc-cache -fv 2>/dev/null || true
     fc-cache -fv 2>/dev/null || true
 }
@@ -206,12 +212,15 @@ install_aur() {
         return
     fi
 
-    # On aarch64, AUR PKGBUILDs lack arch support — use --ignorearch
-    local paru_flags=(--needed --noconfirm)
-    [[ "$ARCH" != "x86_64" ]] && paru_flags+=(--mflags='--ignorearch')
+    local paru_flags=(--needed --noconfirm --skipreview)
+    if [[ "$ARCH" != "x86_64" ]]; then
+        paru_flags+=(--mflags='--ignorearch')
+    fi
 
     info "Installing AUR packages with paru..."
-    if ! paru -S "${paru_flags[@]}" "${AUR_PKGS[@]}"; then
+    if paru -S "${paru_flags[@]}" "${AUR_PKGS[@]}"; then
+        ok "AUR packages installed"
+    else
         warn "Some AUR packages may have failed — check output above"
         ERRORS+=("Some AUR packages failed")
     fi
@@ -220,13 +229,13 @@ install_aur() {
     if ! command -v matugen &>/dev/null; then
         if [[ "$ARCH" == "x86_64" ]]; then
             info "Installing matugen-bin (prebuilt x86_64)..."
-            paru -S --needed --noconfirm matugen-bin || {
+            paru -S --needed --noconfirm --skipreview matugen-bin || {
                 warn "matugen-bin failed, trying source build..."
-                paru -S "${paru_flags[@]}" matugen
+                paru -S "${paru_flags[@]}" matugen || true
             }
         else
             info "Installing matugen (source build for $ARCH)..."
-            paru -S "${paru_flags[@]}" matugen
+            paru -S "${paru_flags[@]}" matugen || true
         fi
     else
         ok "matugen already installed"
@@ -243,7 +252,7 @@ install_vmware_extras() {
     # Fix TTY: remove kmscon if present, ensure getty@tty1
     if pacman -Qi kmscon &>/dev/null; then
         info "Removing kmscon..."
-        sudo pacman -Rns --noconfirm kmscon && ok "kmscon removed" || true
+        sudo pacman -Rns --noconfirm kmscon || true
     fi
     sudo systemctl enable getty@tty1.service 2>/dev/null || true
     sudo systemctl set-default multi-user.target
@@ -253,11 +262,10 @@ install_vmware_extras() {
     if pacman -Qi open-vm-tools &>/dev/null; then
         ok "open-vm-tools already installed"
     elif [[ "$ARCH" == "x86_64" ]]; then
-        # x86_64: available in official repos
         sudo pacman -S --needed --noconfirm open-vm-tools && \
             ok "open-vm-tools installed" || warn "open-vm-tools install failed"
     else
-        # aarch64: not in repos, build from Arch packaging with patches
+        # aarch64: not in repos — two-stage build from Arch packaging
         info "Building open-vm-tools from source for $ARCH..."
         sudo pacman -S --needed --noconfirm \
             fuse3 gtkmm3 libcanberra libdnet libmspack libsigc++ \
@@ -274,13 +282,21 @@ install_vmware_extras() {
             sed -i "s/arch=('x86_64')/arch=('x86_64' 'aarch64')/" PKGBUILD
             sed -i '/^build[[:space:]]*()[[:space:]]*{/a\  export CFLAGS="$CFLAGS -Wno-discarded-qualifiers"' PKGBUILD
 
-            # Append glib stubs patch to prepare()
-            sed -i '/^prepare()[[:space:]]*{/a\  local _glib="${srcdir}/${pkgname}/open-vm-tools/lib/rpcChannel/glib_stubs.c"\n  if [[ -f "$_glib" ]]; then sed -i "/void g_free/i #undef g_free" "$_glib"; fi' PKGBUILD
+            # Stage 1: download and extract sources (don't build yet)
+            makepkg --nobuild -s --noconfirm
 
-            # Build and install
-            makepkg -si --noconfirm
+            # Patch glib stubs in extracted source
+            local glib_stubs="src/open-vm-tools/open-vm-tools/lib/rpcChannel/glib_stubs.c"
+            if [[ -f "$glib_stubs" ]]; then
+                sed -i '/void g_free/i #undef g_free' "$glib_stubs"
+                ok "Patched glib_stubs.c"
+            fi
+
+            # Stage 2: build from patched source and install
+            makepkg -es --noconfirm
+            sudo pacman -U --noconfirm open-vm-tools-*.pkg.tar.* || true
         ) && ok "open-vm-tools built and installed" || {
-            warn "open-vm-tools build failed"
+            warn "open-vm-tools build failed (non-critical)"
             ERRORS+=("open-vm-tools build from source failed")
         }
         rm -rf "$build_dir"
@@ -293,10 +309,9 @@ install_vmware_extras() {
     fi
 
     # Enable VMware services
-    sudo systemctl enable --now vmtoolsd.service 2>/dev/null && \
-        ok "vmtoolsd enabled" || warn "Could not enable vmtoolsd"
-    sudo systemctl enable --now vmware-vmblock-fuse.service 2>/dev/null && \
-        ok "vmware-vmblock-fuse enabled" || warn "Could not enable vmware-vmblock-fuse"
+    sudo systemctl enable --now vmtoolsd.service 2>/dev/null || true
+    sudo systemctl enable --now vmware-vmblock-fuse.service 2>/dev/null || true
+    ok "VMware services enabled"
 }
 
 # ─── Setup AGS (npm install) ────────────────────────────────────────────────
@@ -305,7 +320,6 @@ setup_ags() {
 
     local ags_dir="$HOME/.config/ags"
 
-    # Check AGS is installed (provides /usr/share/ags/js)
     if [[ ! -d "/usr/share/ags/js" ]]; then
         err "AGS not installed (/usr/share/ags/js missing)"
         err "Install aylurs-gtk-shell from AUR first"
@@ -329,19 +343,18 @@ setup_ags() {
     fi
 
     info "Installing AGS npm dependencies..."
-    # Remove lock file to regenerate with current system paths
     rm -f "$ags_dir/package-lock.json"
-    (cd "$ags_dir" && npm install 2>&1) && \
-        ok "AGS npm dependencies installed" || {
-            warn "npm install failed — trying with legacy peer deps"
-            (cd "$ags_dir" && npm install --legacy-peer-deps 2>&1) && \
-                ok "AGS npm dependencies installed (legacy)" || {
-                    err "AGS npm install failed"
-                    ERRORS+=("AGS npm install failed")
-                }
-        }
-
-    # SCSS is compiled after setup_colors generates _colors.scss (see main)
+    if (cd "$ags_dir" && npm install 2>&1); then
+        ok "AGS npm dependencies installed"
+    else
+        warn "npm install failed — trying with legacy peer deps"
+        if (cd "$ags_dir" && npm install --legacy-peer-deps 2>&1); then
+            ok "AGS npm dependencies installed (legacy)"
+        else
+            err "AGS npm install failed"
+            ERRORS+=("AGS npm install failed")
+        fi
+    fi
 }
 
 # ─── Deploy dotfiles via stow ───────────────────────────────────────────────
@@ -363,15 +376,17 @@ deploy_stow() {
     for pkg in "${stow_pkgs[@]}"; do
         local pkg_dir="$DOTFILES_DIR/$pkg"
         if [[ -d "$pkg_dir" ]]; then
-            # Check if pkg has any files (skip empty dirs)
             if [[ -z "$(find "$pkg_dir" -type f 2>/dev/null | head -1)" ]]; then
                 warn "Skipping $pkg (empty)"
                 continue
             fi
             info "Stowing ${BOLD}$pkg${NC}..."
-            # --adopt: take over existing files (e.g. .zshrc) into stow management
-            stow --dir="$DOTFILES_DIR" --target="$HOME" --adopt --restow "$pkg" && \
-                ok "$pkg" || { err "Failed to stow $pkg"; ERRORS+=("stow $pkg failed"); }
+            if stow --dir="$DOTFILES_DIR" --target="$HOME" --adopt --restow "$pkg"; then
+                ok "$pkg"
+            else
+                err "Failed to stow $pkg"
+                ERRORS+=("stow $pkg failed")
+            fi
         else
             warn "Skipping $pkg (not found)"
         fi
@@ -379,8 +394,7 @@ deploy_stow() {
 
     # Restore dotfiles content after --adopt (adopt may overwrite repo files)
     info "Restoring dotfiles from git..."
-    (cd "$DOTFILES_DIR" && git checkout -- . 2>/dev/null) && \
-        ok "Dotfiles restored" || warn "git checkout failed"
+    (cd "$DOTFILES_DIR" && git checkout -- .) || warn "git checkout failed"
 }
 
 # ─── Generate Material You colors ───────────────────────────────────────────
@@ -389,7 +403,6 @@ setup_colors() {
 
     local wp_dir="$HOME/Pictures/wallpapers"
     mkdir -p "$wp_dir"
-    # Create dirs matugen expects for templates
     mkdir -p "$HOME/.config/gtk-3.0" "$HOME/.config/gtk-4.0"
     mkdir -p "$HOME/.config/ags/scss" 2>/dev/null || true
 
@@ -399,17 +412,16 @@ setup_colors() {
         ok "Bundled wallpapers copied"
     fi
 
-    # Find a wallpaper to generate colors from
     local wallpaper=""
-    if [[ -d "$wp_dir" ]]; then
-        wallpaper=$(find "$wp_dir" -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) | head -1)
-    fi
+    wallpaper=$(find "$wp_dir" -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" -o -name "*.webp" \) 2>/dev/null | head -1)
 
     if [[ -n "$wallpaper" ]] && command -v matugen &>/dev/null; then
         info "Generating colors from: $(basename "$wallpaper")"
-        matugen image "$wallpaper" -m dark --source-color-index 0 && \
-            ok "Material You colors generated" || \
+        if matugen image "$wallpaper" -m dark --source-color-index 0; then
+            ok "Material You colors generated"
+        else
             warn "matugen failed — colors will be generated on first login"
+        fi
     else
         warn "No wallpaper found or matugen not installed — skipping color generation"
         info "Place wallpapers in ${BOLD}~/Pictures/wallpapers/${NC}"
@@ -437,21 +449,18 @@ setup_shell_and_services() {
 
     # Enable NetworkManager
     info "Enabling NetworkManager..."
-    sudo systemctl enable --now NetworkManager.service 2>/dev/null && \
-        ok "NetworkManager" || warn "NetworkManager failed"
+    sudo systemctl enable --now NetworkManager.service 2>/dev/null || true
+    ok "NetworkManager"
 
     # Enable audio
     info "Enabling audio services..."
-    systemctl --user enable --now pipewire.socket 2>/dev/null && \
-        ok "pipewire" || warn "pipewire failed"
-    systemctl --user enable --now wireplumber.service 2>/dev/null && \
-        ok "wireplumber" || warn "wireplumber failed"
-    systemctl --user enable --now pipewire-pulse.socket 2>/dev/null && \
-        ok "pipewire-pulse" || warn "pipewire-pulse failed"
+    systemctl --user enable --now pipewire.socket 2>/dev/null || true
+    systemctl --user enable --now wireplumber.service 2>/dev/null || true
+    systemctl --user enable --now pipewire-pulse.socket 2>/dev/null || true
+    ok "Audio services"
 
     # Create required directories
     mkdir -p "$HOME/Pictures/Screenshots"
-    ok "Directories created"
 
     # Configure xdg-desktop-portal for niri (needed for flatpak apps)
     if [[ ! -f /usr/share/xdg-desktop-portal/niri-portals.conf ]]; then
@@ -464,15 +473,13 @@ PORTAL
     fi
 
     # Global flatpak override: grant wayland socket to all apps
-    # Many flatpak apps (Electron-based) only request x11 by default
-    flatpak override --user --socket=wayland 2>/dev/null && \
-        ok "Flatpak global wayland override" || true
+    flatpak override --user --socket=wayland 2>/dev/null || true
+    ok "Flatpak wayland override"
 
     # Remove Thunar's built-in wallpaper plugin (only supports GNOME/XFCE)
-    # Our custom action in uca.xml handles wallpaper + matugen instead
     if [[ -f /usr/lib/thunarx-3/thunar-wallpaper-plugin.so ]]; then
         sudo rm -f /usr/lib/thunarx-3/thunar-wallpaper-plugin.so
-        info "Removed Thunar wallpaper plugin (replaced by custom action)"
+        ok "Removed Thunar wallpaper plugin (replaced by custom action)"
     fi
 }
 
@@ -487,7 +494,7 @@ verify() {
         zsh starship zoxide fastfetch nvim
         grim slurp wl-copy cliphist
         playerctl brightnessctl nmcli
-        thunar
+        thunar flatpak
     )
     for cmd in "${bins[@]}"; do
         if command -v "$cmd" &>/dev/null; then
@@ -500,21 +507,26 @@ verify() {
 
     echo ""
     info "Checking fonts..."
+    sudo fc-cache -f 2>/dev/null || true
+    fc-cache -f 2>/dev/null || true
     if command -v fc-list &>/dev/null; then
-        local -A font_files=(
-            ["JetBrainsMono Nerd Font"]="*jetbrainsmono*nerd*"
-            ["Noto Sans"]="*notosans*"
-        )
-        for font in "${!font_files[@]}"; do
-            if fc-list 2>/dev/null | grep -qi "$font"; then
-                ok "$font"
-            elif find /usr/share/fonts -iname "${font_files[$font]}" 2>/dev/null | head -1 | grep -q .; then
-                ok "$font (installed, fc-cache may need refresh)"
-            else
-                err "$font not found"
-                ERRORS+=("Missing font: $font")
-            fi
-        done
+        if fc-list 2>/dev/null | grep -qi "JetBrainsMono"; then
+            ok "JetBrainsMono Nerd Font"
+        elif find /usr/share/fonts -iname "*jetbrainsmono*nerd*" 2>/dev/null | head -1 | grep -q .; then
+            ok "JetBrainsMono Nerd Font (installed, cache may need refresh)"
+        else
+            err "JetBrainsMono Nerd Font not found"
+            ERRORS+=("Missing font: JetBrainsMono Nerd Font")
+        fi
+
+        if fc-list 2>/dev/null | grep -qi "Noto Sans"; then
+            ok "Noto Sans"
+        elif find /usr/share/fonts -iname "*NotoSans*" 2>/dev/null | head -1 | grep -q .; then
+            ok "Noto Sans (installed, cache may need refresh)"
+        else
+            err "Noto Sans not found"
+            ERRORS+=("Missing font: Noto Sans")
+        fi
     fi
 
     echo ""
@@ -528,7 +540,7 @@ verify() {
 
     echo ""
     info "Checking stow symlinks..."
-    for target in niri/config.kdl ags/app.ts foot/foot.ini; do
+    for target in niri/config.kdl ags/app.ts foot/foot.ini matugen/config.toml; do
         if [[ -L "$HOME/.config/$target" ]] || [[ -f "$HOME/.config/$target" ]]; then
             ok "$target"
         else
@@ -577,7 +589,6 @@ main() {
         deploy_stow
     fi
 
-    # AGS setup (npm install)
     setup_ags
 
     if ! $skip_install; then
@@ -589,9 +600,12 @@ main() {
     local ags_dir="$HOME/.config/ags"
     if command -v sass &>/dev/null && [[ -f "$ags_dir/style.scss" ]]; then
         info "Compiling AGS styles with Material You colors..."
-        sass --no-source-map --style=compressed \
-            "$ags_dir/style.scss" "$ags_dir/style-compiled.css" && \
-            ok "SCSS compiled" || warn "SCSS compilation failed"
+        if sass --no-source-map --style=compressed \
+            "$ags_dir/style.scss" "$ags_dir/style-compiled.css"; then
+            ok "SCSS compiled"
+        else
+            warn "SCSS compilation failed"
+        fi
     fi
 
     verify
