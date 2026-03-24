@@ -113,6 +113,7 @@ PACMAN_PKGS=(
 
     # wayland compositor deps
     polkit-gnome xdg-desktop-portal xdg-desktop-portal-gtk
+    flatpak
     mesa xorg-xwayland
 
     # networking
