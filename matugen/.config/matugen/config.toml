@@ -14,7 +14,7 @@ output_path = "~/.config/foot/colors.ini"
 
 [templates.ags-colors]
 input_path = "~/.config/matugen/templates/colors-ags.scss"
-output_path = "~/.dotfiles/ags/.config/ags/scss/_colors.scss"
+output_path = "~/.config/ags/scss/_colors.scss"
 
 [templates.gtk3]
 input_path = "~/.config/matugen/templates/gtk3-colors.css"

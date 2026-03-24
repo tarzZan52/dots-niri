@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<actions>
+    <action>
+        <icon>preferences-desktop-wallpaper</icon>
+        <name>Set as Wallpaper</name>
+        <submenu></submenu>
+        <unique-id>1711234567890-1</unique-id>
+        <command>$HOME/.local/bin/set-bg.sh %f</command>
+        <description>Set this image as wallpaper and apply Material You colors</description>
+        <range>*</range>
+        <patterns>*</patterns>
+        <image-files/>
+    </action>
+</actions>

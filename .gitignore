@@ -4,3 +4,4 @@ node_modules/
 style-compiled.css
 package-lock.json
 .claude/
+REFERENCE.md

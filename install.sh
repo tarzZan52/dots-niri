@@ -193,8 +193,9 @@ install_pacman() {
         ERRORS+=("Some pacman packages failed")
     fi
 
-    # Rebuild font cache after installing fonts
-    sudo fc-cache -f 2>/dev/null || true
+    # Rebuild font cache after installing fonts (both system and user)
+    sudo fc-cache -fv 2>/dev/null || true
+    fc-cache -fv 2>/dev/null || true
 }
 
 install_aur() {
@@ -340,13 +341,7 @@ setup_ags() {
                 }
         }
 
-    # Compile SCSS once
-    if command -v sass &>/dev/null && [[ -f "$ags_dir/style.scss" ]]; then
-        info "Compiling AGS styles..."
-        sass --no-source-map --style=compressed \
-            "$ags_dir/style.scss" "$ags_dir/style-compiled.css" && \
-            ok "SCSS compiled" || warn "SCSS compilation failed"
-    fi
+    # SCSS is compiled after setup_colors generates _colors.scss (see main)
 }
 
 # ─── Deploy dotfiles via stow ───────────────────────────────────────────────
@@ -359,6 +354,7 @@ deploy_stow() {
         foot
         matugen
         scripts
+        thunar
         zsh
     )
 
@@ -395,7 +391,7 @@ setup_colors() {
     mkdir -p "$wp_dir"
     # Create dirs matugen expects for templates
     mkdir -p "$HOME/.config/gtk-3.0" "$HOME/.config/gtk-4.0"
-    mkdir -p "$HOME/.dotfiles/ags/.config/ags/scss" 2>/dev/null || true
+    mkdir -p "$HOME/.config/ags/scss" 2>/dev/null || true
 
     # Copy bundled wallpapers if present
     if [[ -d "$DOTFILES_DIR/wallpapers" ]]; then
@@ -456,6 +452,28 @@ setup_shell_and_services() {
     # Create required directories
     mkdir -p "$HOME/Pictures/Screenshots"
     ok "Directories created"
+
+    # Configure xdg-desktop-portal for niri (needed for flatpak apps)
+    if [[ ! -f /usr/share/xdg-desktop-portal/niri-portals.conf ]]; then
+        info "Configuring xdg-desktop-portal for niri..."
+        sudo tee /usr/share/xdg-desktop-portal/niri-portals.conf > /dev/null << 'PORTAL'
+[preferred]
+default=gtk
+PORTAL
+        ok "Portal config for niri"
+    fi
+
+    # Global flatpak override: grant wayland socket to all apps
+    # Many flatpak apps (Electron-based) only request x11 by default
+    flatpak override --user --socket=wayland 2>/dev/null && \
+        ok "Flatpak global wayland override" || true
+
+    # Remove Thunar's built-in wallpaper plugin (only supports GNOME/XFCE)
+    # Our custom action in uca.xml handles wallpaper + matugen instead
+    if [[ -f /usr/lib/thunarx-3/thunar-wallpaper-plugin.so ]]; then
+        sudo rm -f /usr/lib/thunarx-3/thunar-wallpaper-plugin.so
+        info "Removed Thunar wallpaper plugin (replaced by custom action)"
+    fi
 }
 
 # ─── Verify ─────────────────────────────────────────────────────────────────
@@ -482,11 +500,16 @@ verify() {
 
     echo ""
     info "Checking fonts..."
-    sudo fc-cache -f 2>/dev/null || fc-cache -f 2>/dev/null || true
     if command -v fc-list &>/dev/null; then
-        for font in "JetBrainsMono Nerd Font" "Noto Sans"; do
+        local -A font_files=(
+            ["JetBrainsMono Nerd Font"]="*jetbrainsmono*nerd*"
+            ["Noto Sans"]="*notosans*"
+        )
+        for font in "${!font_files[@]}"; do
             if fc-list 2>/dev/null | grep -qi "$font"; then
                 ok "$font"
+            elif find /usr/share/fonts -iname "${font_files[$font]}" 2>/dev/null | head -1 | grep -q .; then
+                ok "$font (installed, fc-cache may need refresh)"
             else
                 err "$font not found"
                 ERRORS+=("Missing font: $font")
@@ -554,7 +577,7 @@ main() {
         deploy_stow
     fi
 
-    # AGS setup (npm install, but compile SCSS after colors)
+    # AGS setup (npm install)
     setup_ags
 
     if ! $skip_install; then
@@ -593,11 +616,14 @@ main() {
     echo ""
     info "Keybinds:"
     echo -e "  ${BOLD}Mod+T${NC}         terminal"
+    echo -e "  ${BOLD}Mod+E${NC}         file manager"
     echo -e "  ${BOLD}Mod+D${NC}         app launcher"
     echo -e "  ${BOLD}Mod+N${NC}         sidebar"
     echo -e "  ${BOLD}Mod+C${NC}         clipboard"
+    echo -e "  ${BOLD}Mod+O${NC}         overview"
     echo -e "  ${BOLD}Mod+W${NC}         random wallpaper"
     echo -e "  ${BOLD}Mod+Shift+S${NC}   screenshot (area)"
+    echo -e "  ${BOLD}Print${NC}         screenshot (full)"
     echo ""
 }
 
